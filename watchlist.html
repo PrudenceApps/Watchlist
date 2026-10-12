@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Watchlist">
+<meta name="theme-color" content="#14131a">
+<title>Our Watchlist</title>
+<style>
+  :root {
+    --bg: #f6f3ee; --card: #ffffff; --ink: #1d1b22; --muted: #6f6a78; --line: #e6e1d8;
+    --accent: #d9480f; --accent-ink: #ffffff; --chip: #ebe6dc; --ok: #2b8a3e; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 6px 18px rgba(40,30,10,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14131a; --card: #1e1d26; --ink: #f2eee6; --muted: #9d98a8; --line: #2c2a37;
+      --accent: #ff8a4c; --accent-ink: #1a1007; --chip: #2a2833; --ok: #69db7c; --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 16px calc(110px + env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  header { padding: 22px 0 12px; display: flex; align-items: baseline; justify-content: space-between; }
+  h1 { font: 700 30px/1.1 ui-serif, Georgia, "Times New Roman", serif; margin: 0; letter-spacing: -.01em; }
+  h1 span { color: var(--accent); }
+  .count { color: var(--muted); font-size: 14px; }
+
+  .banner { background: var(--chip); border-radius: 12px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; display: none; }
+  .banner.show { display: block; }
+
+  .addbar { position: sticky; top: 0; z-index: 5; padding: 8px 0 10px; background: var(--bg); }
+  .addbar input {
+    width: 100%; font: inherit; padding: 14px 16px; border-radius: 14px; border: 1.5px solid var(--line);
+    background: var(--card); color: var(--ink); box-shadow: var(--shadow); outline: none;
+  }
+  .addbar input:focus { border-color: var(--accent); }
+  .results { background: var(--card); border-radius: 14px; margin-top: 8px; box-shadow: var(--shadow); overflow: hidden; display: none; border: 1px solid var(--line); }
+  .results.show { display: block; }
+  .res { display: flex; gap: 12px; padding: 10px 12px; width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; border-bottom: 1px solid var(--line); cursor: pointer; align-items: center; }
+  .res:last-child { border-bottom: 0; }
+  .res:active { background: var(--chip); }
+  .res .t { font-weight: 600; }
+  .res .s { color: var(--muted); font-size: 13px; }
+  .res.on { opacity: .55; }
+  .poster { width: 44px; height: 66px; border-radius: 6px; background: var(--chip) center/cover no-repeat; flex: none; display: grid; place-items: center; font-size: 20px; color: var(--muted); }
+  .note { padding: 12px 14px; color: var(--muted); font-size: 14px; }
+
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 12px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; border: 0; font: inherit; font-size: 14px; padding: 7px 13px; border-radius: 999px; background: var(--chip); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .chip small { color: var(--muted); margin-left: 4px; }
+  .chip.on { background: var(--accent); color: var(--accent-ink); }
+  .chip.on small { color: inherit; opacity: .8; }
+
+  .list { display: grid; gap: 10px; }
+  .item { display: flex; gap: 14px; padding: 12px; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); width: 100%; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .item .poster { width: 64px; height: 96px; border-radius: 8px; }
+  .item .body { min-width: 0; flex: 1; }
+  .item h3 { margin: 2px 0 2px; font: 600 17px/1.25 ui-serif, Georgia, serif; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #fff; }
+  .badge.soft { background: var(--chip) !important; color: var(--muted); font-weight: 500; }
+  .watched { opacity: .55; }
+  .watched h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 20px; }
+  .empty b { display: block; color: var(--ink); font: 600 20px ui-serif, Georgia, serif; margin-bottom: 6px; }
+
+  /* detail sheet */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 20; }
+  .scrim.show { display: block; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--bg); border-radius: 22px 22px 0 0; max-height: 90vh; overflow: auto; padding: 18px 18px calc(24px + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .25s ease; }
+  .sheet.show { transform: none; }
+  .sheet .inner { max-width: 560px; margin: 0 auto; }
+  .sheet .top { display: flex; gap: 14px; }
+  .sheet .top .poster { width: 84px; height: 126px; }
+  .sheet h2 { margin: 0 0 4px; font: 700 22px/1.2 ui-serif, Georgia, serif; }
+  .sheet label { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; font-weight: 600; }
+  .sheet textarea, .sheet .inp { width: 100%; font: inherit; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
+  .sheet textarea { min-height: 70px; resize: vertical; }
+  .tog { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tog button { font: inherit; font-size: 14px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+  .tog button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .row { display: flex; gap: 10px; margin-top: 20px; }
+  .btn { flex: 1; font: inherit; font-weight: 600; padding: 13px; border-radius: 13px; border: 0; cursor: pointer; background: var(--chip); color: var(--ink); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.danger { color: #e03131; }
+  .btn:disabled { opacity: .5; }
+  .fine { color: var(--muted); font-size: 12px; margin-top: 14px; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 30px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-size: 14px; opacity: 0; transition: .25s; pointer-events: none; z-index: 40; max-width: 90vw; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* bottom tab bar */
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; justify-content: center; gap: 4px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line); }
+  .tabbar button { flex: 1; max-width: 180px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; padding: 6px 4px; border-radius: 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .tabbar button .ic { font-size: 22px; line-height: 1.1; }
+  .tabbar button.on { color: var(--accent); background: var(--chip); }
+  .tabbar button small { font-weight: 500; opacity: .8; }
+
+  /* spin view */
+  .spin-head h2 { margin: 6px 0 2px; font: 700 24px/1.2 ui-serif, Georgia, serif; }
+  .spin-head p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .wheelwrap { position: relative; width: min(86vw, 340px); aspect-ratio: 1; margin: 6px auto 14px; }
+  #wheel { width: 100%; height: 100%; display: block; border-radius: 50%; box-shadow: 0 8px 28px rgba(0,0,0,.25); }
+  .pointer { position: absolute; left: 50%; top: -10px; width: 0; height: 0; transform: translateX(-50%); border-left: 13px solid transparent; border-right: 13px solid transparent; border-top: 26px solid var(--ink); filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); z-index: 2; }
+  .hub { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: 4px solid var(--bg); background: var(--accent); color: var(--accent-ink); font: 800 14px/1 inherit; letter-spacing: .05em; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.35); z-index: 2; }
+  .hub:disabled { background: var(--chip); color: var(--muted); cursor: default; }
+  .winner { background: var(--card); border-radius: 18px; box-shadow: var(--shadow); padding: 14px; display: none; gap: 14px; margin-bottom: 16px; border: 2px solid var(--accent); animation: pop .35s ease; }
+  .winner.show { display: flex; }
+  .winner .poster { width: 72px; height: 108px; }
+  .winner .kicker { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+  .winner h3 { margin: 2px 0 4px; font: 700 21px/1.2 ui-serif, Georgia, serif; }
+  .winner .row { margin-top: 10px; }
+  .winner .btn { padding: 9px; font-size: 14px; }
+  @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+  .pickbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 10px; }
+  .pickbar .sp { flex: 1; }
+  .link { background: none; border: 0; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 6px 4px; }
+  .pick { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--card); border: 2px solid transparent; border-radius: 14px; padding: 8px 12px 8px 8px; cursor: pointer; box-shadow: var(--shadow); }
+  .pick.on { border-color: var(--accent); }
+  .pick .poster { width: 40px; height: 60px; border-radius: 6px; font-size: 16px; }
+  .pick .t { font-weight: 600; line-height: 1.25; }
+  .pick .box { margin-left: auto; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; flex: none; color: var(--accent-ink); font-size: 14px; font-weight: 800; }
+  .pick.on .box { background: var(--accent); border-color: var(--accent); }
+  .picks { display: grid; gap: 8px; }
+  footer { color: var(--muted); font-size: 11.5px; text-align: center; margin-top: 30px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Our <span>Watchlist</span></h1>
+    <div class="count" id="count"></div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div id="listView">
+    <div class="addbar">
+      <input id="q" type="search" placeholder="Add a film or show…" autocomplete="off" autocapitalize="words" enterkeyhint="search">
+      <div class="results" id="results"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="list" id="list"></div>
+  </div>
+
+  <div id="spinView" style="display:none">
+    <div class="spin-head"><h2>Can't decide?</h2><p id="spinHint">Tick the ones you're torn between, then spin.</p></div>
+    <div class="wheelwrap"><div class="pointer"></div><canvas id="wheel"></canvas><button class="hub" id="spinBtn" disabled>SPIN</button></div>
+    <div class="winner" id="winner"></div>
+    <div class="pickbar" id="pickbar"></div>
+    <div class="picks" id="pickList"></div>
+  </div>
+
+  <footer id="credits">
+    Streaming availability data from JustWatch via TMDB.<br>
+    This product uses the TMDB API but is not endorsed or certified by TMDB.
+  </footer>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button data-tab="Film"><span class="ic">🎬</span>Films <small id="nFilm"></small></button>
+  <button data-tab="TV"><span class="ic">📺</span>TV <small id="nTV"></small></button>
+  <button data-tab="Spin"><span class="ic">🎡</span>Spin</button>
+</nav>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"><div class="inner" id="sheetBody"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ================= SETTINGS: fill these two in ================= */
+const SCRIPT_URL = '';      // your Apps Script web app URL (leave empty to keep the list on this phone only)
+const TMDB_KEY   = '';      // free key from themoviedb.org: either the "API Key" or the long "API Read Access Token"
+const REGION     = 'GB';    // country for streaming availability
+/* ============================================================== */
+
+const COMMON_SERVICES = ['Netflix', 'Prime Video', 'Disney+', 'Apple TV+', 'NOW', 'BBC iPlayer', 'ITVX', 'Channel 4', 'Paramount+', 'Sky Go'];
+const REFRESH_DAYS = 7;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const today = () => new Date().toISOString().slice(0, 10);
+const uid = () => 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const splitList = s => String(s || '').split('|').map(x => x.trim()).filter(Boolean);
+const joinList = a => (a || []).join('|');
+
+let items = [];
+let tab = 'Film';
+try { const t = localStorage.getItem('watchlist.tab'); if (t === 'TV' || t === 'Film' || t === 'Spin') tab = t; } catch (e) {}
+const filters = { Film: 'all', TV: 'all' };
+const selected = new Set();
+let pickFilter = 'all';
+let opCount = 0;
+let openId = null;
+
+/* ---------------- toast ---------------- */
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ---------------- TMDB ---------------- */
+const tmdbOn = () => !!TMDB_KEY;
+async function tmdb(path, params = {}) {
+  const u = new URL('https://api.themoviedb.org/3' + path);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  const opts = {};
+  if (TMDB_KEY.length > 40) opts.headers = { Authorization: 'Bearer ' + TMDB_KEY };
+  else u.searchParams.set('api_key', TMDB_KEY);
+  const r = await fetch(u, opts);
+  if (r.status === 401) throw new Error('TMDB key rejected');
+  if (!r.ok) throw new Error('TMDB error ' + r.status);
+  return r.json();
+}
+
+// Tidy provider names so "Netflix Standard with Adverts" and "Netflix" are one thing.
+function cleanProvider(n) {
+  n = String(n);
+  n = n.replace(/\s+(Amazon|Apple TV|Roku Premium|Prime Video)\s+Channel$/i, '').trim();
+  if (/^netflix/i.test(n)) return 'Netflix';
+  if (/^amazon prime video|^prime video/i.test(n)) return 'Prime Video';
+  if (/^amazon video$/i.test(n)) return 'Amazon Video';
+  if (/^disney\s*(plus|\+)/i.test(n)) return 'Disney+';
+  if (/^apple tv\s*(plus|\+)/i.test(n)) return 'Apple TV+';
+  if (/^apple tv$/i.test(n) || /^apple itunes$/i.test(n)) return 'Apple TV';
+  if (/^paramount\s*(plus|\+)/i.test(n)) return 'Paramount+';
+  if (/^(now tv|now)$/i.test(n) || /^now (entertainment|cinema)/i.test(n)) return 'NOW';
+  if (/^bbc iplayer/i.test(n)) return 'BBC iPlayer';
+  if (/^itvx|^itv hub/i.test(n)) return 'ITVX';
+  if (/^(channel 4|all 4)/i.test(n)) return 'Channel 4';
+  return n;
+}
+async function fetchProviders(type, tmdbId) {
+  const d = await tmdb(`/${type === 'TV' ? 'tv' : 'movie'}/${tmdbId}/watch/providers`);
+  const r = (d.results || {})[REGION] || {};
+  const uniq = arr => [...new Set((arr || []).map(p => cleanProvider(p.provider_name)))];
+  const streaming = uniq([...(r.flatrate || []), ...(r.free || []), ...(r.ads || [])]);
+  const rentbuy = uniq([...(r.rent || []), ...(r.buy || [])]).filter(x => !streaming.includes(x));
+  return { streaming, rentbuy };
+}
+
+/* ---------------- storage ---------------- */
+const LS_KEY = 'watchlist.v1';
+const rowToItem = r => ({
+  id: r[0], title: r[1], type: r[2] || 'Film', year: r[3], tmdb: r[4], poster: r[5],
+  streaming: splitList(r[6]), rentbuy: splitList(r[7]), checked: r[8], status: r[9] || 'To watch', notes: r[10], added: r[11]
+});
+const itemToFields = it => ({
+  id: it.id, title: it.title, type: it.type, year: it.year || '', tmdb: it.tmdb || '', poster: it.poster || '',
+  streaming: joinList(it.streaming), rentbuy: joinList(it.rentbuy), checked: it.checked || '',
+  status: it.status || 'To watch', notes: it.notes || '', added: it.added || today()
+});
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch (e) {} }
+function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
+
+async function post(body) {
+  if (!SCRIPT_URL) { saveLocal(); return; }
+  opCount++;
+  try { await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) }); }
+  catch (e) { toast("Couldn't reach the sheet. Check your connection."); }
+  scheduleReload();
+}
+let reloadTimer;
+function scheduleReload() { clearTimeout(reloadTimer); reloadTimer = setTimeout(() => load(true), 2000); }
+
+async function load(quiet) {
+  if (!SCRIPT_URL) { items = loadLocal(); render(); return; }
+  const startedAt = opCount;
+  try {
+    const r = await fetch(SCRIPT_URL, { redirect: 'follow' });
+    const rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error('bad response');
+    if (opCount !== startedAt) return;               // something changed while loading; a newer reload is coming
+    items = rows.slice(1).filter(x => x[0] && x[1]).map(rowToItem).reverse(); // sheet is oldest-first; show newest first
+    saveLocal();
+    $('banner').classList.remove('show');
+  } catch (e) {
+    if (!quiet || !items.length) items = loadLocal();
+    $('banner').textContent = "Couldn't reach the shared sheet. Showing what's saved on this phone.";
+    $('banner').classList.add('show');
+  }
+  render();
+  if (!quiet) refreshStale();
+}
+
+/* ---------------- list actions ---------------- */
+function addItem(it) { items.unshift(it); saveLocal(); render(); post({ op: 'add', item: itemToFields(it) }); }
+function updateItem(id, patch) {
+  const it = items.find(x => x.id === id); if (!it) return;
+  Object.assign(it, patch); saveLocal(); render();
+  const fields = {};
+  Object.keys(patch).forEach(k => { fields[k] = (k === 'streaming' || k === 'rentbuy') ? joinList(patch[k]) : patch[k]; });
+  post({ op: 'update', id, fields });
+}
+function removeItem(id) { items = items.filter(x => x.id !== id); saveLocal(); render(); post({ op: 'delete', id }); }
+
+async function refreshOne(it) {
+  if (!tmdbOn() || !it.tmdb) return false;
+  const p = await fetchProviders(it.type, it.tmdb);
+  updateItem(it.id, { streaming: p.streaming, rentbuy: p.rentbuy, checked: today() });
+  return true;
+}
+let refreshing = false;
+async function refreshStale() {
+  if (refreshing || !tmdbOn()) return;
+  refreshing = true;
+  try {
+    const cutoff = new Date(Date.now() - REFRESH_DAYS * 864e5).toISOString().slice(0, 10);
+    const stale = items.filter(i => i.tmdb && i.status !== 'Watched' && (!i.checked || i.checked < cutoff)).slice(0, 8);
+    for (const it of stale) { try { await refreshOne(it); } catch (e) { break; } }
+  } finally { refreshing = false; }
+}
+
+/* ---------------- rendering ---------------- */
+function hue(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function badge(name) { return `<span class="badge" style="background:hsl(${hue(name)} 45% 38%)">${esc(name)}</span>`; }
+function posterStyle(it) { return it.poster ? `style="background-image:url('https://image.tmdb.org/t/p/w185${esc(it.poster)}')"` : ''; }
+function posterFallback(it) { return it.poster ? '' : (it.type === 'TV' ? '📺' : '🎬'); }
+
+function setTab(t) {
+  tab = t; try { localStorage.setItem('watchlist.tab', t); } catch (e) {}
+  window.scrollTo(0, 0); render();
+}
+
+function visibleItems() {
+  const f = filters[tab];
+  return items.filter(it => {
+    if (it.type !== tab) return false;
+    if (f === 'watched') return it.status === 'Watched';
+    if (it.status === 'Watched') return false;
+    if (f === 'none') return !it.streaming.length;
+    if (f !== 'all') return it.streaming.includes(f);
+    return true;
+  });
+}
+
+function render() {
+  const todoOf = t => items.filter(i => i.type === t && i.status !== 'Watched');
+  $('nFilm').textContent = todoOf('Film').length || ''; $('nTV').textContent = todoOf('TV').length || '';
+  document.querySelectorAll('#tabbar button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('listView').style.display = tab === 'Spin' ? 'none' : ''; $('spinView').style.display = tab === 'Spin' ? '' : 'none';
+  if (tab === 'Spin') { $('count').textContent = ''; return renderSpin(); }
+
+  const pool = items.filter(i => i.type === tab);
+  const todo = pool.filter(i => i.status !== 'Watched');
+  const noun = tab === 'TV' ? 'shows' : 'films';
+  $('count').textContent = todo.length ? `${todo.length} ${noun} to watch` : '';
+  $('q').placeholder = 'Add a film or show…';
+
+  // filter chips, built from what's actually on this tab
+  let filter = filters[tab];
+  const counts = {};
+  todo.forEach(i => i.streaming.forEach(s => counts[s] = (counts[s] || 0) + 1));
+  const services = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+  const noneN = todo.filter(i => !i.streaming.length).length;
+  const watchedN = pool.length - todo.length;
+  const valid = new Set(['all', ...services, ...(noneN ? ['none'] : []), ...(watchedN ? ['watched'] : [])]);
+  if (!valid.has(filter)) filter = filters[tab] = 'all';
+  const chip = (key, label, n) => `<button class="chip ${filter === key ? 'on' : ''}" data-f="${esc(key)}">${esc(label)}${n != null ? `<small>${n}</small>` : ''}</button>`;
+  let h = chip('all', 'All', todo.length);
+  services.forEach(s => h += chip(s, s, counts[s]));
+  if (noneN) h += chip('none', 'Not streaming', noneN);
+  if (watchedN) h += chip('watched', 'Watched', watchedN);
+  $('chips').innerHTML = pool.length ? h : '';
+
+  const vis = visibleItems();
+  if (!vis.length) {
+    $('list').innerHTML = pool.length
+      ? `<div class="empty"><b>Nothing here</b>Try another filter.</div>`
+      : `<div class="empty"><b>No ${noun} yet</b>Search above and tap a title to add it.</div>`;
+    return;
+  }
+  $('list').innerHTML = vis.map(it => {
+    const b = it.streaming.map(badge).join('')
+      || (it.rentbuy.length ? `<span class="badge soft">Rent/buy only</span>` : `<span class="badge soft">${it.tmdb ? 'Not streaming in the UK' : 'No service set'}</span>`);
+    return `<button class="item ${it.status === 'Watched' ? 'watched' : ''}" data-id="${esc(it.id)}">
+      <div class="poster" ${posterStyle(it)}>${posterFallback(it)}</div>
+      <div class="body"><h3>${esc(it.title)}</h3>
+        <div class="meta">${it.year ? esc(it.year) : (it.type === 'TV' ? 'TV series' : 'Film')}</div>
+        <div class="badges">${b}</div>
+        ${it.notes ? `<div class="meta" style="margin-top:6px">“${esc(it.notes)}”</div>` : ''}
+      </div></button>`;
+  }).join('');
+}
+
+/* ---------------- spin the wheel ---------------- */
+let rot = 0, spinning = false, lastWinner = null;
+const wheelColor = i => `hsl(${(i * 47 + 12) % 360} 58% 46%)`;
+
+function candidates() { return items.filter(i => i.status !== 'Watched'); }
+function selectedItems() { return candidates().filter(i => selected.has(i.id)); }
+
+function drawWheel() {
+  const c = $('wheel'); const size = Math.round(c.getBoundingClientRect().width) || 320;
+  const dpr = window.devicePixelRatio || 1;
+  if (c.width !== size * dpr) { c.width = size * dpr; c.height = size * dpr; }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, size, size);
+  const R = size / 2, list = selectedItems(), n = list.length;
+  g.save(); g.translate(R, R);
+  if (n < 2) {
+    g.fillStyle = getComputedStyle(document.body).getPropertyValue('--chip'); g.beginPath(); g.arc(0, 0, R, 0, 7); g.fill();
+    g.fillStyle = getComputedStyle(document.body).getPropertyValue('--muted'); g.font = '600 16px -apple-system, sans-serif'; g.textAlign = 'center';
+    g.fillText(n ? 'Pick one more' : 'Pick 2 or more below', 0, -R * .45); g.restore(); return;
+  }
+  const a = Math.PI * 2 / n;
+  list.forEach((it, i) => {
+    g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, rot + i * a, rot + (i + 1) * a); g.closePath();
+    g.fillStyle = wheelColor(i); g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.85)'; g.stroke();
+    g.save(); g.rotate(rot + (i + .5) * a); g.textAlign = 'right'; g.textBaseline = 'middle';
+    const fs = Math.max(10, Math.min(16, 19 - n * .6)); g.font = `700 ${fs}px -apple-system, sans-serif`;
+    const maxW = R * .74; let t = it.title;
+    while (g.measureText(t).width > maxW && t.length > 3) t = t.slice(0, -2);
+    if (t !== it.title) t = t.trim() + '…';
+    g.fillStyle = '#fff'; g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 3; g.fillText(t, R - 14, 0);
+    g.restore();
+  });
+  g.restore();
+}
+
+function renderSpin() {
+  const cand = candidates();
+  for (const id of [...selected]) if (!cand.some(i => i.id === id)) selected.delete(id);
+  const shown = cand.filter(i => pickFilter === 'all' || i.type === pickFilter);
+  const nF = cand.filter(i => i.type === 'Film').length, nT = cand.filter(i => i.type === 'TV').length;
+  const f = (k, l, n) => `<button class="chip ${pickFilter === k ? 'on' : ''}" data-pf="${k}">${l}<small>${n}</small></button>`;
+  $('pickbar').innerHTML = f('all', 'All', cand.length) + f('Film', 'Films', nF) + f('TV', 'TV', nT) +
+    `<span class="sp"></span><button class="link" id="pickAll">Select all</button><button class="link" id="pickNone">Clear</button>`;
+  const n = selected.size;
+  $('spinHint').textContent = cand.length < 2 ? 'Add at least two things to your lists first.' : n < 2 ? "Tick the ones you're torn between, then spin." : `${n} on the wheel. Good luck!`;
+  $('spinBtn').disabled = n < 2 || spinning;
+  $('pickList').innerHTML = shown.length ? shown.map(it => `<button class="pick ${selected.has(it.id) ? 'on' : ''}" data-id="${esc(it.id)}">
+      <div class="poster" ${posterStyle(it)}>${posterFallback(it)}</div>
+      <div><div class="t">${esc(it.title)}</div><div class="meta">${it.type === 'TV' ? 'TV' : 'Film'}${it.year ? ' · ' + esc(it.year) : ''}${it.streaming.length ? ' · ' + esc(it.streaming.slice(0, 2).join(', ')) : ''}</div></div>
+      <div class="box">${selected.has(it.id) ? '✓' : ''}</div></button>`).join('')
+    : `<div class="empty"><b>Nothing to pick from</b>Add films or shows on the other tabs.</div>`;
+  drawWheel();
+}
+
+function hideWinner() { $('winner').classList.remove('show'); }
+function showWinner(it) {
+  const b = it.streaming.map(badge).join('') || `<span class="badge soft">${it.rentbuy.length ? 'Rent/buy only' : 'No service set'}</span>`;
+  $('winner').innerHTML = `<div class="poster" ${posterStyle(it)}>${posterFallback(it)}</div>
+    <div style="min-width:0;flex:1"><div class="kicker">Tonight you're watching</div><h3>${esc(it.title)}</h3>
+    <div class="meta">${it.type === 'TV' ? 'TV series' : 'Film'}${it.year ? ' · ' + esc(it.year) : ''}</div><div class="badges">${b}</div>
+    <div class="row"><button class="btn" id="spinAgain">Spin again</button><button class="btn" id="winDetails" data-id="${esc(it.id)}">Details</button></div></div>`;
+  $('winner').classList.add('show');
+}
+
+function spin() {
+  const list = selectedItems(); if (spinning || list.length < 2) return;
+  spinning = true; hideWinner(); $('spinBtn').disabled = true;
+  const n = list.length, a = Math.PI * 2 / n;
+  const w = Math.floor(Math.random() * n);
+  const theta = (w + .15 + Math.random() * .7) * a;                    // where on the winning slice the pointer lands
+  const norm = x => ((x % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const extra = norm(-Math.PI / 2 - theta - rot) + Math.PI * 2 * (reduced ? 1 : 5 + Math.floor(Math.random() * 3));
+  const start = rot, dur = reduced ? 700 : 4800, t0 = performance.now();
+  lastWinner = list[w];
+  const ease = t => 1 - Math.pow(1 - t, 4);
+  (function frame(now) {
+    const t = Math.min(1, (now - t0) / dur);
+    rot = start + extra * ease(t); drawWheel();
+    if (t < 1) return requestAnimationFrame(frame);
+    rot = norm(rot); spinning = false; $('spinBtn').disabled = selected.size < 2; drawWheel(); showWinner(lastWinner);
+  })(t0);
+}
+
+/* ---------------- search / add ---------------- */
+let searchTimer, searchSeq = 0;
+function showResults(html) { $('results').innerHTML = html; $('results').classList.toggle('show', !!html); }
+
+function manualRow(q) {
+  return `<button class="res" data-manual="1"><div class="poster">✍️</div><div><div class="t">Add “${esc(q)}” manually</div><div class="s">Pick the service yourself</div></div></button>`;
+}
+async function doSearch() {
+  const q = $('q').value.trim();
+  const seq = ++searchSeq;
+  if (q.length < 2) { showResults(''); render(); return; }
+  if (!tmdbOn()) { showResults(manualRow(q) + `<div class="note">Add a TMDB key in the page settings to look titles up and fill in streaming services automatically.</div>`); return; }
+  showResults(`<div class="note">Searching…</div>`);
+  try {
+    const d = await tmdb('/search/multi', { query: q, include_adult: 'false', language: 'en-GB' });
+    if (seq !== searchSeq) return;
+    const res = (d.results || []).filter(r => r.media_type === 'movie' || r.media_type === 'tv').slice(0, 7);
+    window.__results = res;
+    const html = res.map((r, i) => {
+      const title = r.title || r.name || '', year = (r.release_date || r.first_air_date || '').slice(0, 4);
+      const type = r.media_type === 'tv' ? 'TV' : 'Film';
+      const on = items.some(x => String(x.tmdb) === String(r.id) && x.type === type);
+      return `<button class="res ${on ? 'on' : ''}" data-i="${i}">
+        <div class="poster" ${r.poster_path ? `style="background-image:url('https://image.tmdb.org/t/p/w92${esc(r.poster_path)}')"` : ''}>${r.poster_path ? '' : '🎬'}</div>
+        <div><div class="t">${esc(title)}</div><div class="s">${type === 'TV' ? 'TV series' : 'Film'}${year ? ' · ' + year : ''}${on ? ' · already on your list' : ''}</div></div></button>`;
+    }).join('');
+    showResults((html || `<div class="note">No matches for “${esc(q)}”.</div>`) + manualRow(q));
+  } catch (e) {
+    if (seq !== searchSeq) return;
+    showResults(`<div class="note">${esc(e.message)}. You can still add it manually.</div>` + manualRow(q));
+  }
+}
+
+async function addFromResult(r) {
+  const type = r.media_type === 'tv' ? 'TV' : 'Film';
+  const dup = items.find(x => String(x.tmdb) === String(r.id) && x.type === type);
+  if (dup) { toast('Already on your list'); resetSearch(); return; }
+  const it = {
+    id: uid(), title: r.title || r.name, type, year: (r.release_date || r.first_air_date || '').slice(0, 4),
+    tmdb: String(r.id), poster: r.poster_path || '', streaming: [], rentbuy: [], checked: '', status: 'To watch', notes: '', added: today()
+  };
+  showResults(`<div class="note">Adding ${esc(it.title)} and checking where it's on…</div>`);
+  try { const p = await fetchProviders(type, r.id); it.streaming = p.streaming; it.rentbuy = p.rentbuy; it.checked = today(); } catch (e) { /* added without services; refreshed later */ }
+  addItem(it); resetSearch(); if (tab !== it.type) setTab(it.type);
+  toast(it.streaming.length ? `Added · on ${it.streaming.slice(0, 3).join(', ')}` : (it.checked ? 'Added · not streaming in the UK right now' : 'Added'));
+}
+function resetSearch() { $('q').value = ''; showResults(''); searchSeq++; render(); }
+
+function addManual() {
+  const title = $('q').value.trim(); if (!title) return;
+  const it = { id: uid(), title, type: tab === 'TV' ? 'TV' : 'Film', year: '', tmdb: '', poster: '', streaming: [], rentbuy: [], checked: '', status: 'To watch', notes: '', added: today() };
+  addItem(it); resetSearch(); openSheet(it.id);
+}
+
+/* ---------------- detail sheet ---------------- */
+function openSheet(id) {
+  const it = items.find(x => x.id === id); if (!it) return;
+  openId = id;
+  const all = [...new Set([...COMMON_SERVICES, ...it.streaming])];
+  $('sheetBody').innerHTML = `
+    <div class="top"><div class="poster" ${posterStyle(it)}>${posterFallback(it)}</div>
+      <div><h2>${esc(it.title)}</h2><div class="meta">${it.type === 'TV' ? 'TV series' : 'Film'}${it.year ? ' · ' + esc(it.year) : ''}</div>
+      ${it.rentbuy.length ? `<div class="meta" style="margin-top:8px">Also to rent/buy: ${esc(it.rentbuy.join(', '))}</div>` : ''}</div></div>
+    ${it.tmdb ? '' : `<label>Type</label><div class="tog" id="typeTog"><button data-t="Film" class="${it.type === 'Film' ? 'on' : ''}">Film</button><button data-t="TV" class="${it.type === 'TV' ? 'on' : ''}">TV series</button></div>`}
+    <label>Where to watch</label>
+    <div class="tog" id="svcTog">${all.map(s => `<button data-s="${esc(s)}" class="${it.streaming.includes(s) ? 'on' : ''}">${esc(s)}</button>`).join('')}</div>
+    <div style="display:flex;gap:8px;margin-top:10px"><input class="inp" id="svcOther" placeholder="Other service…"><button class="btn" id="svcAdd" style="flex:none;padding:10px 16px">Add</button></div>
+    ${it.tmdb ? `<div class="fine" id="checkedLine">${it.checked ? 'Availability checked ' + esc(it.checked) : 'Not checked yet'}</div>` : ''}
+    <label>Notes</label>
+    <textarea id="notes" placeholder="Who recommended it, which season…">${esc(it.notes)}</textarea>
+    <div class="row">
+      <button class="btn primary" id="btnWatched">${it.status === 'Watched' ? 'Back on the list' : '✓ Mark as watched'}</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      ${it.tmdb && tmdbOn() ? `<button class="btn" id="btnRefresh">↻ Refresh services</button>` : ''}
+      <button class="btn danger" id="btnDelete">Remove</button>
+    </div>`;
+  $('scrim').classList.add('show'); $('sheet').classList.add('show');
+}
+function closeSheet() {
+  if (openId) { // save notes on close
+    const n = $('notes'); const it = items.find(x => x.id === openId);
+    if (n && it && n.value.trim() !== (it.notes || '')) updateItem(openId, { notes: n.value.trim() });
+  }
+  openId = null; $('scrim').classList.remove('show'); $('sheet').classList.remove('show');
+}
+
+/* ---------------- events ---------------- */
+$('q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(doSearch, 300); });
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(searchTimer); doSearch(); $('q').blur(); } });
+$('results').addEventListener('click', e => {
+  const b = e.target.closest('.res'); if (!b) return;
+  if (b.dataset.manual) return addManual();
+  const r = (window.__results || [])[+b.dataset.i]; if (r) addFromResult(r);
+});
+$('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) { filters[tab] = c.dataset.f; render(); } });
+$('tabbar').addEventListener('click', e => { const b = e.target.closest('button'); if (b && !spinning) setTab(b.dataset.tab); });
+$('spinBtn').addEventListener('click', spin);
+$('pickbar').addEventListener('click', e => {
+  const c = e.target.closest('[data-pf]'); if (c) { pickFilter = c.dataset.pf; return renderSpin(); }
+  if (e.target.id === 'pickAll' || e.target.id === 'pickNone') hideWinner();
+  if (e.target.id === 'pickAll') { candidates().filter(i => pickFilter === 'all' || i.type === pickFilter).slice(0, 20).forEach(i => selected.add(i.id)); if (selected.size >= 20) toast('The wheel holds up to 20'); return renderSpin(); }
+  if (e.target.id === 'pickNone') { selected.clear(); renderSpin(); }
+});
+$('pickList').addEventListener('click', e => {
+  if (spinning) return;
+  const p = e.target.closest('.pick'); if (!p) return;
+  hideWinner();
+  if (selected.has(p.dataset.id)) selected.delete(p.dataset.id);
+  else if (selected.size >= 20) return toast('The wheel holds up to 20');
+  else selected.add(p.dataset.id);
+  renderSpin();
+});
+$('winner').addEventListener('click', e => { if (e.target.id === 'spinAgain') spin(); if (e.target.id === 'winDetails') openSheet(e.target.dataset.id); });
+window.addEventListener('resize', () => { if (tab === 'Spin') drawWheel(); });
+$('list').addEventListener('click', e => { const c = e.target.closest('.item'); if (c) openSheet(c.dataset.id); });
+$('scrim').addEventListener('click', closeSheet);
+$('sheetBody').addEventListener('click', async e => {
+  const id = openId; if (!id) return;
+  const it = items.find(x => x.id === id); if (!it) return;
+  const tt = e.target.closest('#typeTog button');
+  if (tt) { updateItem(id, { type: tt.dataset.t }); openSheet(id); return; }
+  const s = e.target.closest('#svcTog button');
+  if (s) {
+    const name = s.dataset.s;
+    const next = it.streaming.includes(name) ? it.streaming.filter(x => x !== name) : [...it.streaming, name];
+    updateItem(id, { streaming: next }); s.classList.toggle('on'); return;
+  }
+  if (e.target.id === 'svcAdd') {
+    const v = $('svcOther').value.trim(); if (!v) return;
+    if (!it.streaming.includes(v)) updateItem(id, { streaming: [...it.streaming, v] });
+    openSheet(id); return;
+  }
+  if (e.target.id === 'btnWatched') {
+    updateItem(id, { status: it.status === 'Watched' ? 'To watch' : 'Watched', notes: $('notes').value.trim() });
+    toast(it.status === 'Watched' ? 'Marked as watched' : 'Back on the list'); closeSheet(); return;
+  }
+  if (e.target.id === 'btnDelete') {
+    if (e.target.dataset.sure) { openId = null; closeSheet(); removeItem(id); toast('Removed'); return; }
+    e.target.dataset.sure = '1'; e.target.textContent = 'Tap again to remove'; return;
+  }
+  if (e.target.id === 'btnRefresh') {
+    e.target.disabled = true; e.target.textContent = 'Checking…';
+    try { await refreshOne(it); toast('Services updated'); } catch (err) { toast(err.message); }
+    if (openId === id) openSheet(id);
+  }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && SCRIPT_URL && !openId) load(true); });
+
+/* ---------------- boot ---------------- */
+if (!SCRIPT_URL) { $('banner').textContent = 'Not connected to a Google Sheet yet, so this list only lives on this phone.'; $('banner').classList.add('show'); }
+items = loadLocal(); render(); load();
+</script>
+</body>
+</html>
